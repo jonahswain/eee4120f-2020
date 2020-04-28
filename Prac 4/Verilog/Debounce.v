@@ -1,17 +1,21 @@
-module Debounce(
-    input clk, 
-    input button,
-    output reg output 
-);
+// EEE4120F (HPES)
+// Button debounce module
+// Author(s): Jonah Swain [SWNJON003]
 
-reg previous_state;
-reg [21:0]Count; //assume count is null on FPGA configuration
+module Debounce #(parameter delay_ms=25) (input clk, input btn, output debounce_btn);
+    localparam delay_clk_div = delay_ms * 100000;
 
-//--------------------------------------------
-always @(posedge clk) begin 
-    // implement your logic here
-end 
+    reg state;
+    reg prev_state;
+    wire debounce_clk;
+    assign debounce_btn = state & prev_state;
 
+    ClkDiv #(.divisor(delay_clk_div)) ckd (clk, debounce_clk);
+
+    always @(posedge debounce_clk)
+    begin
+        state <= btn;
+        prev_state <= state;
+    end
 
 endmodule
-

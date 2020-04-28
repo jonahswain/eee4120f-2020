@@ -19,7 +19,7 @@ module WallClock(
 	// Instantiate Debounce modules here
 	
 	// registers for storing the time
-    	reg [3:0]hours1=4'd0;
+    reg [3:0]hours1=4'd0;
 	reg [3:0]hours2=4'd0;
 	reg [3:0]mins1=4'd0;
 	reg [3:0]mins1=4'd0;

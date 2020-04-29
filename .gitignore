@@ -1,0 +1,17 @@
+# EEE4120F Practicals and YODA project repository gitignore
+# Author(s): Jonah Swain [SWNJON003]
+
+# === DOCUMENTS ===
+*.pdf
+
+# === PRAC 4 CONTENT ===
+
+
+# === PRAC 5 CONTENT ===
+
+
+# === YODA PROJECT CONTENT ===
+# C++ Implementation
+/YODA/CPP implementation/obj/*
+/YODA/CPP implementation/mma
+/YODA/CPP implementation/mma.exe

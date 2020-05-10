@@ -1,32 +1,31 @@
 Topic Code: P13 - Matrix Multiplier Accelerator
 
 Matrix Multiplier Accelerator
-Swain, Jonah (SWNJON003) | Grant, Ian (GRNIAN004) | Hyde, Liam (HYDLIA001)
+Grant, Ian (GRNIAN004) | Hyde, Liam (HYDLIA001) | Swain, Jonah (SWNJON003)
 
 Team Leader: Jonah Swain
 
-Project Description
-The purpose of this project is to design and implement a digital accelerator capable of performing matrix multiplication. 
-The accelerator must be capable of accepting and working with floats, as well as using square matrices, though accomodation for rectangular matrices should be made. 
-A start and end bit must be provided, by raising outputs high.
+# Project Description
+Matrix multiplication is a computationally complex process that lies at the center of many numerical algorthims.
+The aim of this project is to implement a digital accelerator for the task of matrix multiplication.
+The accelerator should accept two appropriate rectangular matrices from a computer, calculate the product, and return the resulting matrix to the computer.
 
-Proposed Solution
-Using an FPGA, the code should run primarily in parallel, to ensure max speedup over a conventional sequential processor. 
-The system will take in two memory addresses and will correctly multiply the matrices out and save it to a third memory address.
-After multiplication is complete, a output should be pulled high.
+# Proposed Solution
+The accelerator will be implemented on a Nexys A7 FPGA board. As an intial prototype, the matrices will be programmed onto and stored in the FPGA's BRAM, but time permitting, the system may be adapted to store the matrices in the onboard DDR3 RAM and accept data from the computer via UART over USB. The matrix multiplication algorithm should be as parallelized as possible in order to achieve maximum execution speed. Optionally, the accelerator could give some indication of progress using the onboard LEDs or 7-segment displays.
 
-Prototype Specification
--FPGA will be used
--A standard PC CPU will be used as a benchmark/golden measure
--On board memory will be used to store data
--Data will be printed to a external/onboard display to verify multiplication was correct
--User input will be provided from an external device.
--Completion notification will be provided by both onboard display and LED being pulled high
--Computation must be at least 4 times faster than the sequential solution provided by golden measure
+# Prototype Specification
+- Matrices will be programmed into and stored on the FPGAs BRAM.
+- Matrices will contain 16-bit integer elements.
+- (optional) Matrices will be stored on the onboard DDR3 RAM, and stored/retrieved over UART over USB.
+- The result matrix will be transferred back to the PC via UART over USB.
+- (optional) The accelerator will provide progress indication using either the onboard LEDs or the 7-segment displays.
 
-Criteria for acceotable solution
--Starts up
--Takes user input
--Computes data sets
--Provides an output to screen
--Notifies with LED that computation is complete
+# Criteria for acceptable solution
+- Starts up
+- Correctly multiplies matrices
+- Transfers the resulting matrix back to the PC via UART over USB
+
+# Criteria for ideal solution (optional)
+- Stores matrices in onboard DDR3 RAM
+- Receives matrices from PC via UART over USB
+- Displays some indication of progress via the onboard LEDs or 7-segment displays.

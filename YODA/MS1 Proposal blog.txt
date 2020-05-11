@@ -31,5 +31,5 @@ The accelerator will be implemented on a Nexys A7 FPGA board. As an intial proto
 - Displays some indication of progress via the onboard LEDs or 7-segment displays.
 
 # Potential issues and constraints
-- Time dedicated to the project needs to be spit correctly between the mamn tasks that this project encompasses, like development, parallelisation and acceleration.
+- Time dedicated to the project needs to be spit correctly between the many tasks that this project encompasses, like development, parallelisation and acceleration.
 - The lockdown will mean that our project will have to be developed modularly, as we have 3 developers who are unable to co-develop in person. This will inform a lot of our design decisions.

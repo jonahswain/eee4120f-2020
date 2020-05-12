@@ -4,7 +4,7 @@
 
 module ClkDiv #(parameter divisor=100000) (input clk, output reg divclk);
     localparam cnt_width = $clog2(divisor);
-    localparam cnt_max = divisor - 1;
+    localparam cnt_max = divisor - 2;
     localparam cnt_halfmax = divisor/2;
 
     reg [cnt_width-1:0]cnt = 0;

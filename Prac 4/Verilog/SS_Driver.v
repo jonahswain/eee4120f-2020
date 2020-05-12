@@ -1,5 +1,5 @@
 module SS_Driver(
-    input Clk, Reset,
+    input Clk, Reset, PWM,
     input [3:0] BCD3, BCD2, BCD1, BCD0, // Binary-coded decimal input
     output reg [3:0] SegmentDrivers, // Digit drivers (active low)
     output reg [7:0] SevenSegment // Segments (active low)
@@ -19,23 +19,23 @@ reg [16:0]Count;
 
 // Scroll through the digits, switching one on at a time
 always @(posedge Clk) begin
- Count <= Count + 1’b1;
- if ( Reset) SegmentDrivers <= 4’hE;
+ Count <= Count + 1'b1;
+ if ( Reset) SegmentDrivers <= 4'hE;
  else if(&Count) SegmentDrivers <= {SegmentDrivers[2:0], SegmentDrivers[3]};
 end
 
 //------------------------------------------------------------------------------
 always @(*) begin // This describes a purely combinational circuit
-    SevenSegment[7] <= 1’b1; // Decimal point always off
-    if (Reset) begin
-        SevenSegment[6:0] <= 7’h7F; // All off during Reset
+    SevenSegment[7] <= 1'b1; // Decimal point always off
+    if (Reset | ~PWM) begin
+        SevenSegment[6:0] <= 7'h7F; // All off during Reset
     end else begin
         case(~SegmentDrivers) // Connect the correct signals,
-            4’h1 : SevenSegment[6:0] <= ~SS[0]; // depending on which digit is on at
-            4’h2 : SevenSegment[6:0] <= ~SS[1]; // this point
-            4’h4 : SevenSegment[6:0] <= ~SS[2];
-            4’h8 : SevenSegment[6:0] <= ~SS[3];
-            default: SevenSegment[6:0] <= 7’h7F;
+            4'h1 : SevenSegment[6:0] <= ~SS[0]; // depending on which digit is on at
+            4'h2 : SevenSegment[6:0] <= ~SS[1]; // this point
+            4'h4 : SevenSegment[6:0] <= ~SS[2];
+            4'h8 : SevenSegment[6:0] <= ~SS[3];
+            default: SevenSegment[6:0] <= 7'h7F;
         endcase
     end
 end

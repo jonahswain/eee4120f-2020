@@ -4,8 +4,9 @@ Repo of group's practicals and YODA project
 <br>
 # Content and TODO
 - [ ] Practical 4
-  - [ ] Verilog (CONTENT HERE)
-  - [ ] Report
+  - [x] Verilog
+  - [ ] Testbenches
+  - [ ] Demo video
 - [ ] Practical 5
 - [ ] Practical 6 (?)
 - [ ] YODA Project

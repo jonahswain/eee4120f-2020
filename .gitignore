@@ -3,6 +3,8 @@
 
 # === DOCUMENTS ===
 *.pdf
+*.doc
+*.docx
 
 # === PRAC 4 CONTENT ===
 

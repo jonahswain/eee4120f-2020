@@ -16,7 +16,7 @@ module WallClock(
 	output wire [7:0] AN
 );
 
-	parameter sec_div = 100000000; // Clock division to get seconds
+	parameter sec_div = 5; // Clock division to get seconds
 
 	// Constant registers
 	reg __ZERO = 1'b0;

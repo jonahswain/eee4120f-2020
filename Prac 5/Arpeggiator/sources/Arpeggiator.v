@@ -59,10 +59,10 @@ always @(posedge CLK100MHZ) begin // CLK100MHZ clock domain
             sine_clk_div <= freq_base;
         end
         1: begin // 1.25x
-            sine_clk_div <= freq_base*5/4;
+            sine_clk_div <= freq_base*4/5;
         end
         2: begin // 1.5x
-            sine_clk_div <= freq_base*3/2;
+            sine_clk_div <= freq_base*2/3;
         end
         3: begin // 2x
             sine_clk_div <= freq_base*2;

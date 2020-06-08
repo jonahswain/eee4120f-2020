@@ -1,6 +1,6 @@
 // Matrix Multiplication Accelerator (MMA)
 // EEE4120F (HPES) 2020 YODA Project
-// MMA Top Level Module (TLM)
+// MMA UART module
 // Authors: Jonah Swain [SWNJON003]
 `timescale 1ns / 1ps
 
@@ -19,8 +19,8 @@ module UART #(
     input tx_begin,             // Begin transmission
     output reg [7:0] rx_data,   // Received data
     output reg rx_ready,        // Received data ready
-    output wire tx_busy,         // Transmit in progress
-    output wire rx_busy,         // Receive in progress
+    output wire tx_busy,        // Transmit in progress
+    output wire rx_busy,        // Receive in progress
     output reg rx_error         // Error receiving
 );
 

@@ -26,7 +26,7 @@ module UART #(
 
 // === LOCAL PARAMETERS ===
 localparam baud_time = clk_freq/baud_rate; // Number of clock cycles for single bit
-localparam sample_time = baud_time/(oversampling + 2); // Number of clock cycles per sample (plus padding)
+localparam sample_time = baud_time/(oversampling + 1); // Number of clock cycles per sample (plus padding)
 
 localparam [2:0] // RX states
     RXST_IDLE = 3'd0,
@@ -49,10 +49,10 @@ localparam [2:0] // TX states
 reg [2:0] rx_state = RXST_IDLE; // Current RX state
 reg [2:0] rx_bit = 0; // Current RX bit
 reg [$clog2(oversampling+1)-1:0] bit_samples [7:0]; // RX bit samples
-reg [$clog2(oversampling)-1:0] bit_sample_number = 0; // RX bit sample number
+reg [$clog2(oversampling+1)-1:0] bit_sample_number = 0; // RX bit sample number
 reg [$clog2(baud_time):0] rx_cnt = 0; // RX counter (guaranteed wide enough for 2 bit times)
 
-reg tx_state = TXST_IDLE; // Current TX state
+reg [2:0] tx_state = TXST_IDLE; // Current TX state
 reg [7:0] tx_data_shadow = 0; // TX data shadow register
 reg [2:0] tx_bit = 0; // Current TX bit
 reg [$clog2(baud_time):0] tx_cnt = 0; // TX counter (guaranteed wide enough for 2 bit times)
@@ -126,8 +126,8 @@ always @(posedge clk) begin
 
             RXST_SAMPLE_BITS: begin // Sample bits
                 if (!rx_cnt) begin // Wait for delay
-                    bit_samples[tx_bit] <= (uart_rx)? bit_samples[tx_bit]+1:bit_samples[tx_bit]; // Count high samples
-                    if (bit_sample_number >= oversampling) begin // Check if all bit samples have been taken
+                    bit_samples[rx_bit] <= (uart_rx)? bit_samples[rx_bit]+1:bit_samples[rx_bit]; // Count high samples
+                    if (bit_sample_number >= oversampling - 1) begin // Check if all bit samples have been taken
                         // All bit samples taken
                         bit_sample_number <= 0; // Reset bit sample number
                         if (rx_bit == 7) begin
@@ -223,6 +223,7 @@ always @(posedge clk) begin
             if (!tx_cnt) begin // Wait for delay
                 uart_tx <= 1'b1; // Set TX high (stop bit/idle)
                 tx_cnt <= 2*baud_time; // Set counter for 2 baud delay (2 stop bits)
+                tx_state <= TXST_COMPLETE; // Change state to COMPLETE
             end
         end
 

@@ -1,0 +1,66 @@
+Description of program:
+This an example PC side for the MMA. It generates 2 matrices, sends them to the MMA via serial, gets the result from the MMA via serial, and compares it to the "golden standard" calculated on the computer.
+
+Notes:
+Serial port is UARTlite - 1 start bit, 8 data bits, 1 stop bit, no parity. Sending is done 1 byte at a time, in big-endian format.
+
+Flow process of program:
+* Generate 2 MxN single precision float matrices (M, N < 128)
+* Open a serial port to the MMA
+* Send the matrices to the MMA
+* Multiply the matrices to get the golden measure
+* Wait for a message from the MMA indicating completion
+* Get the result from the MMA
+* Compare the result to the golden measure
+
+You need to implement the following pseudo-code functions in Python:
+
+generateMatrix(M: UInt, N: UInt) -> Matrix // Generates a random MxN single-precision floating point (FP32) matrix
+
+openSerialPort(baud: UInt) -> SerialPort // Opens a serial port
+
+transmitMatrix(port: SerialPort, matrix: Matrix, num: UInt) -> () { // Transmits a matrix to the MMA over serial
+    port.send(num); // Send the matrix number (1 or 2)
+    port.send(M); // Send dimension 1 (M) (as 4 bytes UInt, one byte at a time, big-endian)
+    port.send(N); // Send dimension 2 (N) (as 4 bytes UInt, one byte at a time, big-endian)
+    for i = 0:M {
+        for j = 0:N {
+            port.send(matrix[i, j]); // Send data (each element as 4 bytes FP32, one byte at a time, big-endian)
+        }
+    }
+    // Wait for ACK (0x06) from the MMA, or timeout
+}
+
+startMMA(port: SerialPort) -> () { // Sends the start multiplying command
+    port.send(0x03)
+}
+
+multiplyMatrices(A: Matrix, B: Matrix) -> Matrix; // Multiplies A and B
+
+getMatrix(port: SerialPort) -> Matrix { // Gets the result from the MMA (transmitted in similar form to transmitMatrix in reverse direction)
+    port.send(0x04); // Send get result command
+    M = UInt(port.get(4 bytes)); // Get dimension 1 (M)
+    N = UInt(port.get(4 bytes)); // Get dimension 2 (N)
+    for i = 0:M {
+        for j = 0:M {
+            result[i, j] = FP32(port.get(4 bytes)); // Get data
+        }
+    }
+}
+
+compareMatrices(A: Matrix, B: Matrix) -> bool; // Compare matrices (using difference threshhold method for FP numbers)
+
+main() -> () {
+    UInt MA, NA, MB, NB = 3; // Or whatever dimensions you choose
+    A = generateMatrix(MA, NA);
+    B = generateMatrix(MB, NB);
+    port = openSerialPort(9600);
+    transmitMatrix(port, A, 1);
+    transmitMatrix(port, B, 2);
+    startMMA(port);
+    R_golden = multiplyMatrices(A, B);
+    while (port.get() != 0x05); // Wait for 0x05 from MMA serial to indicate completion
+    R_mma = getMatrix(port);
+    comp = compareMatrices(R_golden, R_mma);
+    print(comp);
+}

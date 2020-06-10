@@ -54,7 +54,7 @@ localparam [7:0]                            // MMA States
     ST_MUL_EL_FETCH = 8'h34,                // Multiply element - fetch values
     ST_MUL_EL_FPSET = 8'h35,                // Multiply element - load into FPU
     ST_MUL_EL_FPWAIT = 8'h36,               // Multiply element - wait for FPU
-    ST_MUL_EL_ACCUM = 8'h37,                // Multiply element - accumulate FPU result
+    ST_MUL_EL_FPGET = 8'h37,                // Multiply element - get FPU result
     ST_MUL_EL_WRITE = 8'h38,                // Multiply element - write back result
     ST_MUL_TXCOMPLETE = 8'h39,              // Multiply matrices - transmit completion message
     ST_MUL_COMPLETE = 8'h3A,                // Multiply matrices - complete
@@ -126,19 +126,21 @@ reg [16:0] bram_r_addr = 0;                 // BRAM R address
 reg [31:0] bram_r_din = 0;                  // BRAM R data in
 wire [31:0] bram_r_dout;                    // BRAM R data out
 
-reg [31:0] fpu_in_a = 0;                    // FP multiplier input A
-reg [31:0] fpu_in_b = 0;                    // FP multiplier input B
-reg fpu_valid_a = 0;                        // FP multiplier input A valid signal
-reg fpu_valid_b = 0;                        // FP multiplier input B valid signal
-wire fpu_r;                                 // FP multiplier result
-wire fpu_valid_r;                           // FP multiplier result valid signal
+reg [31:0] fpu_in_a = 0;                    // FP multiplier/accumulator input A
+reg [31:0] fpu_in_b = 0;                    // FP multiplier/accumulator input B
+reg [31:0] fpu_in_c = 0;                    // FP multiplier/accumulator input C
+reg fpu_valid_a = 0;                        // FP multiplier/accumulator input A valid signal
+reg fpu_valid_b = 0;                        // FP multiplier/accumulator input B valid signal
+reg fpu_valid_c = 0;                        // FP multiplier/accumulator input C valid signal
+wire fpu_r;                                 // FP multiplier/accumulator result
+wire fpu_valid_r;                           // FP multiplier/accumulator result valid signal
 
 // === MODULES ===
 UART #(.baud_rate(9600)) mod_uart (CLK100MHZ, uart_reset, UART_TXD_IN, UART_TXD, uart_txd, uart_tx_begin, uart_rxd, uart_rx_ready, uart_tx_busy, uart_rx_busy, uart_rx_error); // UART module
 BRAM mod_bram_a (CLK100MHZ, bram_a_ena, bram_a_wea, bram_a_addr, bram_a_din, bram_a_dout); // BRAM module A
 BRAM mod_bram_b (CLK100MHZ, bram_b_ena, bram_b_wea, bram_b_addr, bram_b_din, bram_b_dout); // BRAM module B
 BRAM mod_bram_r (CLK100MHZ, bram_r_ena, bram_r_wea, bram_r_addr, bram_r_din, bram_r_dout); // BRAM module R
-FB_MUL mod_fpu (CLK100MHZ, fpu_valid_a, fpu_in_a, fpu_valid_b, fpu_in_b, fpu_valid_r, fpu_r); // FP_MUL module (floating point multiplier)
+FB_MAC mod_fpu (CLK100MHZ, fpu_valid_a, fpu_in_a, fpu_valid_b, fpu_in_b, fpu_valid_c, fpu_in_c, fpu_valid_r, fpu_r); // FP_MAC module (floating point multiplier/accumulator)
 
 
 // === BODY/CLOCK DOMAIN ===
@@ -188,8 +190,10 @@ always @(posedge CLK100MHZ) begin
             bram_r_din <= 0;
             fpu_in_a <= 0;
             fpu_in_b <= 0;
+            fpu_in_c <= 0;
             fpu_valid_a <= 0;
             fpu_valid_b <= 0;
+            fpu_valid_c <= 0;
         end
 
         ST_IDLE: begin // Idle
@@ -358,13 +362,13 @@ always @(posedge CLK100MHZ) begin
                 a_i <= r_i; // set A row to R row
                 if (r_j < r_n) begin // Iterate through columns
                     if (a_j < a_n) begin // Iterate through elements
-                        bram_a_addr <= a_i*a_n + a_j; // Set BRAM A address
-                        bram_b_arrr <= b_i*b_n + b_j; // Set BRAM B address
-                        state <= ST_MUL_EL_FETCH; // Change state to MUL_EL_FETCH
+                        bram_a_addr <= a_i*a_n + a_j + 2; // Set BRAM A address
+                        bram_b_arrr <= b_i*b_n + b_j + 2; // Set BRAM B address
+                        state <= ST_MUL_EL_FETCH; // Change state to MUL_EL_FETCH (fetch, MAC)
                         a_j <= a_j + 1; // Increment a_j
                         b_i <= b_i + 1; // Increment b_i
                     end else begin
-                        // TODO: write back
+                        state <= ST_MUL_EL_WRITE; // Change state to MUL_EL_WRITE (write result element to BRAM)
                         a_j <= 0; // Reset a_j
                         b_i <= 0; // Reset b_i
                         r_j <= r_j + 1; // Increment r_j
@@ -391,18 +395,29 @@ always @(posedge CLK100MHZ) begin
         ST_MUL_EL_FPSET: begin // Multiply element - load into FPU
             fpu_in_a <= a_v; // Set FPU input A to a_v
             fpu_in_b <= b_v; // Set FPU input B to b_v
+            fpu_in_c <= r_v; // Set FPU input C to r_v
+            fpu_valid_a <= 1'b1; // Assert FPU input A valid
+            fpu_valid_b <= 1'b1; // Assert FPU input B valid
+            fpu_valid_c <= 1'b1; // Assert FPU input C valid
             state <= ST_MUL_EL_FPWAIT; // Change state to MUL_EL_FPWAIT
         end
 
         ST_MUL_EL_FPWAIT: begin // Multiply element - wait for FPU
-            scratch[0] <= 8; // Set argument to 8
-            return_state <= ST_MUL_EL_ACCUM; // Set return state to MUL_EL_ACCUM
-            state <= ST_WAIT; // Change state to WAIT (wait for 8 cycles for FPU)
+            scratch[0] <= 19; // Set argument to 19
+            return_state <= ST_MUL_EL_FPGET; // Set return state to MUL_EL_FPGET
+            state <= ST_WAIT; // Change state to WAIT (wait for 19 cycles for FPU)
         end
 
-        ST_MUL_EL_ACCUM: begin
-            // HERE
-            // TODO: Change FP IP to fused multiply/add for MAC functionality
+        ST_MUL_EL_FPGET: begin // Multiply element - get FPU result
+            r_v <= fpu_r; // Save fpu_r into r_v
+            state <= ST_MUL_EL_START; // Change state to MUL_EL_START
+        end
+
+        ST_MUL_EL_WRITE: begin
+            bram_r_addr <= r_i*r_n + r_j + 2; // Set BRAM R address
+            bram_r_din <= r_v; // Set BRAM R data in to r_v
+            return_state <= ST_MUL_EL_START; // Set return state to MUL_EL_START
+            state <= ST_BRAM_R_WEA; // Change state to BRAM_R_WEA (write to BRAM)
         end
 
 

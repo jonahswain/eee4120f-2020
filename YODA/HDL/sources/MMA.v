@@ -18,6 +18,11 @@ module MMA (
 //      scratch[1] primary: callee to caller return    secondary: caller to callee argument
 //      scratch[2:3] top level state threads registers - should be preserved by callee states
 //      scratch[4:5] general purpose scratch registers for all states - not guaranteed to be preserved by callee
+// 
+// TODOs:
+//      Implement timer/counter to measure multiplication time
+//      Implement state/error LEDs
+//      Implement counter result on 7-seg displays
 
 // === LOCAL PARAMETERS ===
 localparam MAX_SIZE = 128*128; // Maximum size of a matrix
@@ -65,6 +70,8 @@ localparam [7:0]                            // MMA States
     ST_TXR_COMPLETE = 8'h44,                // Transmit result - complete
     ST_UART_GET4 = 8'h50,                   // UART receive 4 bytes - initialisation
     ST_UART_GET4_RX = 8'h51,                // UART receive 4 bytes - receive data
+    ST_UART_PUT4 = 8'h52,                   // UART transmit 4 bytes - initialisation
+    ST_UART_PUT4_TX = 8'h53,                // UART transmit 4 bytes - transmit data
     ST_UART_RX_WAIT = 8'h5A,                // UART wait for receive
     ST_UART_RX_TIMEOUT = 8'h5B,             // UART timed-out while waiting
     ST_UART_TX_WAIT = 8'h5C,                // UART wait for transmit
@@ -72,8 +79,8 @@ localparam [7:0]                            // MMA States
     ST_BRAM_A_WEA_LOW = 8'h61,              // BRAM A deassert wea
     ST_BRAM_B_WEA = 8'h62,                  // BRAM B assert wea for a cycle
     ST_BRAM_B_WEA_LOW = 8'h63,              // BRAM B deassert wea
-    ST_BRAM_R_WEA = 8'h64;                  // BRAM R assert wea for a cycle
-    ST_BRAM_R_WEA_LOW = 8'h65,              // BRAM R deassert wea
+    ST_BRAM_R_WEA = 8'h64,                  // BRAM R assert wea for a cycle
+    ST_BRAM_R_WEA_LOW = 8'h65;              // BRAM R deassert wea
 
 
 // === REGISTERS & WIRES ===
@@ -140,7 +147,7 @@ UART #(.baud_rate(9600)) mod_uart (CLK100MHZ, uart_reset, UART_TXD_IN, UART_TXD,
 BRAM mod_bram_a (CLK100MHZ, bram_a_ena, bram_a_wea, bram_a_addr, bram_a_din, bram_a_dout); // BRAM module A
 BRAM mod_bram_b (CLK100MHZ, bram_b_ena, bram_b_wea, bram_b_addr, bram_b_din, bram_b_dout); // BRAM module B
 BRAM mod_bram_r (CLK100MHZ, bram_r_ena, bram_r_wea, bram_r_addr, bram_r_din, bram_r_dout); // BRAM module R
-FB_MAC mod_fpu (CLK100MHZ, fpu_valid_a, fpu_in_a, fpu_valid_b, fpu_in_b, fpu_valid_c, fpu_in_c, fpu_valid_r, fpu_r); // FP_MAC module (floating point multiplier/accumulator)
+FP_MAC mod_fpu (CLK100MHZ, fpu_valid_a, fpu_in_a, fpu_valid_b, fpu_in_b, fpu_valid_c, fpu_in_c, fpu_valid_r, fpu_r); // FP_MAC module (floating point multiplier/accumulator)
 
 
 // === BODY/CLOCK DOMAIN ===
@@ -219,7 +226,18 @@ always @(posedge CLK100MHZ) begin
         end
 
         ST_ERROR: begin // Error
-            // TODO
+            if (~uart_tx_begin) begin // Check if uart_tx_begin not asserted
+                if (~uart_tx_busy) begin // Check if UART not busy transmitting
+                    uart_txd <= UART_ERR; // Set uart_txd to UART_ERR
+                    uart_tx_begin <= 1'b1; // Assert uart_tx_begin (start transmission)
+                end
+            end else begin
+                uart_tx_begin <= 1'b0; // Deassert uart_tx_begin
+                return_state <= ST_IDLE; // Set return state to IDLE
+                state <= ST_UART_TX_WAIT; // Change state to UART_TX_WAIT (wait while transmitting)
+            end
+            // TODO: add LEDs
+            // TODO: add error codes (maybe)
         end
 
         ST_RXA: begin // Retrieve matrix A - initialisation
@@ -267,7 +285,7 @@ always @(posedge CLK100MHZ) begin
             scratch[3] <= 0; // Clear scratch[3]
             scratch[4] <= 0; // Clear scratch[4]
             scratch[5] <= 0; // Clear scratch[5]
-            uart_tx_begin <= 0'b0; // Deassert uart_tx_begin
+            uart_tx_begin <= 1'b0; // Deassert uart_tx_begin
             state <= ST_IDLE; // Change state to IDLE
         end
 
@@ -316,7 +334,7 @@ always @(posedge CLK100MHZ) begin
             scratch[3] <= 0; // Clear scratch[3]
             scratch[4] <= 0; // Clear scratch[4]
             scratch[5] <= 0; // Clear scratch[5]
-            uart_tx_begin <= 0'b0; // Deassert uart_tx_begin
+            uart_tx_begin <= 1'b0; // Deassert uart_tx_begin
             state <= ST_IDLE; // Change state to IDLE
         end
 
@@ -363,7 +381,7 @@ always @(posedge CLK100MHZ) begin
                 if (r_j < r_n) begin // Iterate through columns
                     if (a_j < a_n) begin // Iterate through elements
                         bram_a_addr <= a_i*a_n + a_j + 2; // Set BRAM A address
-                        bram_b_arrr <= b_i*b_n + b_j + 2; // Set BRAM B address
+                        bram_b_addr <= b_i*b_n + b_j + 2; // Set BRAM B address
                         state <= ST_MUL_EL_FETCH; // Change state to MUL_EL_FETCH (fetch, MAC)
                         a_j <= a_j + 1; // Increment a_j
                         b_i <= b_i + 1; // Increment b_i
@@ -381,6 +399,7 @@ always @(posedge CLK100MHZ) begin
                     a_i <= a_i + 1; // Increment a_i
                 end
             end else begin
+                state <= ST_MUL_TXCOMPLETE; // Change state to MUL_TXCOMPLETE
                 r_i <= 0; // Reset r_i
                 a_i <= 0; // Reset a_i
             end
@@ -413,15 +432,81 @@ always @(posedge CLK100MHZ) begin
             state <= ST_MUL_EL_START; // Change state to MUL_EL_START
         end
 
-        ST_MUL_EL_WRITE: begin
+        ST_MUL_EL_WRITE: begin // Multiply element - write back result
             bram_r_addr <= r_i*r_n + r_j + 2; // Set BRAM R address
             bram_r_din <= r_v; // Set BRAM R data in to r_v
+            r_v <= 0; // Reset r_v
             return_state <= ST_MUL_EL_START; // Set return state to MUL_EL_START
             state <= ST_BRAM_R_WEA; // Change state to BRAM_R_WEA (write to BRAM)
         end
 
+        ST_MUL_TXCOMPLETE: begin // Multiply matrices - transmit completion message
+            if (!uart_tx_busy) begin // Check if UART not busy
+                uart_txd <= UART_DONE; // Set uart_txd to UART_DONE
+                uart_tx_begin <= 1'b1; // Assert uart_tx_begin (start TX)
+                state <= ST_MUL_COMPLETE; // Change state to MUL_COMPLETE
+            end // Do nothing (wait) if UART busy
+        end
 
+        ST_MUL_COMPLETE: begin // Multiply matrices - complete
+            uart_tx_begin <= 1'b0; // Deassert uart_tx_begin
+            // Reset registers
+            scratch[2] <= 0;
+            scratch[3] <= 0;
+            a_i <= 0;
+            a_j <= 0;
+            a_v <= 0;
+            b_i <= 0;
+            b_j <= 0;
+            b_v <= 0;
+            r_i <= 0;
+            r_j <= 0;
+            r_v <= 0;
+            state <= ST_IDLE; // Change state to IDLE
+        end
 
+        ST_TXR: begin // Transmit result - initialisation
+            scratch[2] <= 2; // Set scratch[2] to 2
+            scratch[3] <= 0; // Clear scratch[3]
+            scratch[4] <= 0; // Clear scratch[4]
+            scratch[5] <= 0; // Clear scratch[5]
+            state <= ST_TXR_DIM1; // Change state to TXR_DIM1
+        end
+
+        ST_TXR_DIM1: begin // Transmit result - dimension 1
+            scratch[0] <= r_m; // Set argument to matrix R dimension M
+            return_state <= ST_TXR_DIM2; // Set return state to TXR_DIM2
+            state <= ST_UART_PUT4; // Change state to UART_PUT4 (send 4 bytes over UART)
+        end
+
+        ST_TXR_DIM2: begin // Transmit result - dimension 2
+            scratch[0] <= r_n; // Set argument to matrix R dimension N
+            return_state <= ST_TXR_DATA; // Set return state to TXR_DATA
+            bram_r_addr <= scratch[2]; // Set BRAM R address to next data address
+            state <= ST_UART_PUT4; // Change state to UART_PUT4 (send 4 bytes over UART)
+        end
+
+        ST_TXR_DATA: begin // Transmit result - data (values)
+            if (scratch[2] < r_m*r_n + 1) begin // Iterate through data until all sent
+                scratch[0] <= bram_r_dout; // Set argument to BRAM R data out (current value)
+                scratch[2] <= scratch[2] + 1; // Increment scratch[2]
+                bram_r_addr <= scratch[2] + 1; // Set BRAM R address to next data address
+                return_state <= ST_TXR_DATA; // Set return state to TXR_DATA (this)
+                state <= ST_UART_PUT4; // Change state to UART_PUT4 (send 4 bytes over UART)
+            end else begin // Last data to send
+                scratch[0] <= bram_r_dout; // Set argument to BRAM R data out (current value)
+                return_state <= ST_TXR_COMPLETE; // Set return state to TXR_COMPLETE
+                state <= ST_UART_PUT4; // Change state to UART_PUT4 (send 4 bytes over UART)
+            end
+        end
+
+        ST_TXR_COMPLETE: begin // Transmit result - complete
+            scratch[2] <= 0; // Clear scratch[2]
+            scratch[3] <= 0; // Clear scratch[3]
+            scratch[4] <= 0; // Clear scratch[4]
+            scratch[5] <= 0; // Clear scratch[5]
+            state <= ST_IDLE; // Change state to IDLE
+        end
 
         ST_UART_GET4: begin // UART receive 4 bytes - initialisation
             scratch[4][7:0] <= return_state; // Save return state
@@ -464,6 +549,49 @@ always @(posedge CLK100MHZ) begin
             endcase
         end
 
+        ST_UART_PUT4: begin // UART transmit 4 bytes - initialisation
+            scratch[4][7:0] <= return_state; // Save return state
+            scratch[4][9:8] <= 0; // Set byte count to 0
+            state <= ST_UART_PUT4_TX; // Change state to UART_PUT4_TX
+        end
+
+        ST_UART_PUT4_TX: begin // UART transmit 4 bytes - transmit data
+            if (uart_tx_begin) begin // Check if uart_tx_begin is asserted
+                if (scratch[4][9:8]) begin // Check if bytes still to be transmitted
+                    uart_tx_begin <= 1'b0; // Deassert uart_tx_begin
+                    return_state <= ST_UART_PUT4_TX; // Set return state to UART_PUT4_TX (this)
+                    state <= ST_UART_TX_WAIT; // Set state to UART_TX_WAIT (wait for TX to complete)
+                end else begin // All bytes transmitted
+                    uart_tx_begin <= 1'b0; // Deassert uart_tx_begin
+                    return_state <= scratch[4][7:0]; // Restore return state
+                    state <= ST_UART_TX_WAIT; // Set state to UART_TX_WAIT (wait for TX to complete)
+                end
+            end else begin // uart_tx_begin not asserted
+                case (scratch[4][9:8])
+                    2'b00: begin
+                        uart_txd <= scratch[0][31:24]; // Set uart_txd to data byte
+                        uart_tx_begin <= 1'b1; // Assert uart_tx_begin (start transmission)
+                        scratch[4][9:8] <= 2'b01; // Increment byte count
+                    end
+                    2'b01: begin
+                        uart_txd <= scratch[0][23:16]; // Set uart_txd to data byte
+                        uart_tx_begin <= 1'b1; // Assert uart_tx_begin (start transmission)
+                        scratch[4][9:8] <= 2'b10; // Increment byte count
+                    end
+                    2'b10: begin
+                        uart_txd <= scratch[0][15:8]; // Set uart_txd to data byte
+                        uart_tx_begin <= 1'b1; // Assert uart_tx_begin (start transmission)
+                        scratch[4][9:8] <= 2'b11; // Increment byte count
+                    end
+                    2'b11: begin
+                        uart_txd <= scratch[0][7:0]; // Set uart_txd to data byte
+                        uart_tx_begin <= 1'b1; // Assert uart_tx_begin (start transmission)
+                        scratch[4][9:8] <= 2'b00; // Reset byte count
+                    end
+                endcase
+            end
+        end
+
         ST_UART_RX_WAIT: begin // UART wait for receive
             if (scratch[0]) begin
                 scratch[0] <= scratch[0] - 1; // Decrement scratch[0] until 0
@@ -476,7 +604,16 @@ always @(posedge CLK100MHZ) begin
             end
         end
 
+        ST_UART_RX_TIMEOUT: begin // UART timed-out while waiting
+            state <= ST_ERROR; // Change state to ERROR
+            // TODO
+        end
 
+        ST_UART_TX_WAIT: begin // UART wait for transmit
+            if (~uart_tx_busy) begin // Check if UART not busy transmitting
+                state <= return_state; // Return
+            end
+        end
 
         ST_BRAM_A_WEA: begin // BRAM A assert wea for a cycle
             bram_a_wea <= 1'b1; // Assert wea
@@ -485,7 +622,7 @@ always @(posedge CLK100MHZ) begin
 
         ST_BRAM_A_WEA_LOW: begin // BRAM A deassert wea
             bram_a_wea <= 1'b0; // Deassert wea
-            return_state <= scratch[0]; // Set return state
+            return_state <= scratch[0][7:0]; // Set return state
             state <= return_state; // Return
         end
 
@@ -496,7 +633,7 @@ always @(posedge CLK100MHZ) begin
 
         ST_BRAM_B_WEA_LOW: begin // BRAM B deassert wea
             bram_b_wea <= 1'b0; // Deassert wea
-            return_state <= scratch[0]; // Set return state
+            return_state <= scratch[0][7:0]; // Set return state
             state <= return_state; // Return
         end
 
@@ -507,11 +644,9 @@ always @(posedge CLK100MHZ) begin
 
         ST_BRAM_R_WEA_LOW: begin // BRAM R deassert wea
             bram_r_wea <= 1'b0; // Deassert wea
-            return_state <= scratch[0]; // Set return state
+            return_state <= scratch[0][7:0]; // Set return state
             state <= return_state; // Return
         end
-
-
 
     endcase
     

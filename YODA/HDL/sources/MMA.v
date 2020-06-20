@@ -6,9 +6,11 @@
 
 module MMA (
     // === INPUTS & OUTPUTS ===
-    input CLK100MHZ,            // Main clock (100MHz)
-    input UART_TXD_IN,          // UART RX
-    output UART_TXD             // UART TX  
+    input CLK100MHZ,                            // Main clock (100MHz)
+    input UART_TXD_IN,                          // UART RX
+    output UART_TXD,                            // UART TX
+    output CA, CB, CC, CD, CE, CF, CG, DP,      // 7-segment display cathodes
+    output [7:0] AN                             // 7-segment display anodes
 );
 
 // === IMPORTANT NOTES ===
@@ -146,6 +148,8 @@ reg counter_en = 0;                         // Counter enable
 reg counter_reset = 0;                      // Counter reset
 wire [31:0] counter_value;                  // Counter value (clock cycles)
 
+reg sevenseg_reset = 0;                     // 7 segment display driver reset
+
 // === MODULES ===
 UART #(.baud_rate(9600)) mod_uart (CLK100MHZ, uart_reset, UART_TXD_IN, UART_TXD, uart_txd, uart_tx_begin, uart_rxd, uart_rx_ready, uart_tx_busy, uart_rx_busy, uart_rx_error); // UART module
 BRAM mod_bram_a (CLK100MHZ, bram_a_ena, bram_a_wea, bram_a_addr, bram_a_din, bram_a_dout); // BRAM module A
@@ -153,6 +157,7 @@ BRAM mod_bram_b (CLK100MHZ, bram_b_ena, bram_b_wea, bram_b_addr, bram_b_din, bra
 BRAM mod_bram_r (CLK100MHZ, bram_r_ena, bram_r_wea, bram_r_addr, bram_r_din, bram_r_dout); // BRAM module R
 FP_MAC mod_fpu (CLK100MHZ, fpu_valid_a, fpu_in_a, fpu_valid_b, fpu_in_b, fpu_valid_c, fpu_in_c, fpu_valid_r, fpu_r); // FP_MAC module (floating point multiplier/accumulator)
 Counter mod_cntr (CLK100MHZ, counter_reset, counter_en, counter_value); // Counter module (counts clock cycles)
+SevenSegmentDriver mod_7seg (CLK100MHZ, sevenseg_reset, counter_value, AN[7:0], {CA, CB, CC, CD, CE, CF, CG, DP}); // 7 segment display driver module
 
 // === BODY/CLOCK DOMAIN ===
 always @(posedge CLK100MHZ) begin
@@ -207,6 +212,7 @@ always @(posedge CLK100MHZ) begin
             fpu_valid_c <= 0;
             counter_en <= 0;
             counter_reset <= 0;
+            sevenseg_reset <= 0;
         end
 
         ST_IDLE: begin // Idle

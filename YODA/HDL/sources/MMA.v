@@ -8,7 +8,7 @@ module MMA (
     // === INPUTS & OUTPUTS ===
     input CLK100MHZ,                            // Main clock (100MHz)
     input UART_TXD_IN,                          // UART RX
-    output UART_TXD,                            // UART TX
+    output UART_RXD_OUT,                        // UART TX
     output CA, CB, CC, CD, CE, CF, CG, DP,      // 7-segment display cathodes
     output [7:0] AN                             // 7-segment display anodes
 );
@@ -30,14 +30,14 @@ module MMA (
 localparam MAX_SIZE = 128*128; // Maximum size of a matrix
 localparam UART_TIMEOUT = 500000; // Maximum time to wait for a UART byte
 
-localparam [7:0]            // UART commands
-    UART_RX_A = 8'h01,      // Incoming matrix A
-    UART_RX_B = 8'h02,      // Incoming matrix B
-    UART_MULTIPLY = 8'h03,  // Perform multiplication
-    UART_TX_R = 8'h04,      // Return result
-    UART_DONE = 8'h05,      // Multiplication complete
-    UART_ACK = 8'h06,       // Acknowledge transmission
-    UART_ERR = 8'hAA;       // Assert error
+localparam [7:0]                            // UART commands
+    UART_RX_A = 8'h01,                      // Incoming matrix A
+    UART_RX_B = 8'h02,                      // Incoming matrix B
+    UART_MULTIPLY = 8'h03,                  // Perform multiplication
+    UART_TX_R = 8'h04,                      // Return result
+    UART_DONE = 8'h05,                      // Multiplication complete
+    UART_ACK = 8'h06,                       // Acknowledge transmission
+    UART_ERR = 8'hAA;                       // Assert error
 
 localparam [7:0]                            // MMA States
     ST_RESET = 8'h00,                       // Reset
@@ -109,8 +109,8 @@ reg [31:0] r_v = 0;                         // Matrix R element value
 
 
 reg uart_reset = 0;                         // UART reset signal
-reg uart_txd = 0;                           // UART transmit data
-wire uart_rxd;                              // UART received data
+reg [7:0] uart_txd = 0;                     // UART transmit data
+wire [7:0] uart_rxd;                        // UART received data
 reg uart_tx_begin = 0;                      // UART begin transmit signal
 wire uart_rx_ready;                         // UART received data ready signal
 wire uart_rx_busy;                          // UART busy receiving signal
@@ -141,7 +141,7 @@ reg [31:0] fpu_in_c = 0;                    // FP multiplier/accumulator input C
 reg fpu_valid_a = 0;                        // FP multiplier/accumulator input A valid signal
 reg fpu_valid_b = 0;                        // FP multiplier/accumulator input B valid signal
 reg fpu_valid_c = 0;                        // FP multiplier/accumulator input C valid signal
-wire fpu_r;                                 // FP multiplier/accumulator result
+wire [31:0] fpu_r;                          // FP multiplier/accumulator result
 wire fpu_valid_r;                           // FP multiplier/accumulator result valid signal
 
 reg counter_en = 0;                         // Counter enable
@@ -149,15 +149,16 @@ reg counter_reset = 0;                      // Counter reset
 wire [31:0] counter_value;                  // Counter value (clock cycles)
 
 reg sevenseg_reset = 0;                     // 7 segment display driver reset
+wire [31:0] sevenseg_state = {24'h000000, state}; // 7 segment display driver input (state)
 
 // === MODULES ===
-UART #(.baud_rate(9600)) mod_uart (CLK100MHZ, uart_reset, UART_TXD_IN, UART_TXD, uart_txd, uart_tx_begin, uart_rxd, uart_rx_ready, uart_tx_busy, uart_rx_busy, uart_rx_error); // UART module
+UART #(.baud_rate(9600)) mod_uart (CLK100MHZ, uart_reset, UART_TXD_IN, UART_RXD_OUT, uart_txd, uart_tx_begin, uart_rxd, uart_rx_ready, uart_tx_busy, uart_rx_busy, uart_rx_error); // UART module
 BRAM mod_bram_a (CLK100MHZ, bram_a_ena, bram_a_wea, bram_a_addr, bram_a_din, bram_a_dout); // BRAM module A
 BRAM mod_bram_b (CLK100MHZ, bram_b_ena, bram_b_wea, bram_b_addr, bram_b_din, bram_b_dout); // BRAM module B
 BRAM mod_bram_r (CLK100MHZ, bram_r_ena, bram_r_wea, bram_r_addr, bram_r_din, bram_r_dout); // BRAM module R
 FP_MAC mod_fpu (CLK100MHZ, fpu_valid_a, fpu_in_a, fpu_valid_b, fpu_in_b, fpu_valid_c, fpu_in_c, fpu_valid_r, fpu_r); // FP_MAC module (floating point multiplier/accumulator)
 Counter mod_cntr (CLK100MHZ, counter_reset, counter_en, counter_value); // Counter module (counts clock cycles)
-SevenSegmentDriver mod_7seg (CLK100MHZ, sevenseg_reset, counter_value, AN[7:0], {CA, CB, CC, CD, CE, CF, CG, DP}); // 7 segment display driver module
+SevenSegmentDriver mod_7seg (CLK100MHZ, sevenseg_reset, sevenseg_state, AN[7:0], {CA, CB, CC, CD, CE, CF, CG, DP}); // 7 segment display driver module
 
 // === BODY/CLOCK DOMAIN ===
 always @(posedge CLK100MHZ) begin
@@ -217,8 +218,8 @@ always @(posedge CLK100MHZ) begin
 
         ST_IDLE: begin // Idle
             // Detect rising edge on uart_rx_ready (wait for new command)
-            scratch[4][0] <= uart_rx_ready;
-            if (uart_rx_ready && (scratch[4][0] == 1'b0)) begin
+            scratch[4][31] <= ~uart_rx_ready;
+            if (uart_rx_ready && scratch[4][31]) begin
                 // Rising edge detected - new data available
                 case (uart_rxd) // Choose next state depending on received command
                     UART_RX_A: state <= ST_RXA; // Change state to RXA
@@ -278,7 +279,7 @@ always @(posedge CLK100MHZ) begin
         end
 
         ST_RXA_DATA: begin // Receive matrix A - data (values)
-            if (scratch[2] <= a_n*a_m+1) begin // Get data until all received
+            if (scratch[2] < a_n*a_m+1) begin // Get data until all received
                 bram_a_addr <= scratch[2]; // Set BRAM A address to scratch[2] (current address)
                 scratch[2] <= scratch[2] + 1; // Increment scratch[2]
                 bram_a_din <= scratch[1]; // Set BRAM A data in to scratch[1] (bytes received from UART)
@@ -288,7 +289,10 @@ always @(posedge CLK100MHZ) begin
             end else begin // All data received
                 uart_txd <= UART_ACK; // Set uart_txd to ACK
                 uart_tx_begin <= 1'b1; // Assert uart_tx_begin (start transmit)
-                state <= ST_RXA_COMPLETE; // Change state to RXA_COMPLETE
+                bram_a_addr <= scratch[2]; // Set BRAM A address to scratch[2] (current address)
+                bram_a_din <= scratch[1]; // Set BRAM A data in to scratch[1] (bytes received from UART)
+                return_state <= ST_RXA_COMPLETE; // Set return state to RXA_COMPLETE
+                state <= ST_BRAM_A_WEA; // Change state to BRAM_A_WEA (write to BRAM A)
             end
         end
 
@@ -327,7 +331,7 @@ always @(posedge CLK100MHZ) begin
         end
 
         ST_RXB_DATA: begin // Receive matrix B - data (values)
-            if (scratch[2] <= b_n*b_m+1) begin // Get data until all received
+            if (scratch[2] < b_n*b_m+1) begin // Get data until all received
                 bram_b_addr <= scratch[2]; // Set BRAM B address to scratch[2] (current address)
                 scratch[2] <= scratch[2] + 1; // Increment scratch[2]
                 bram_b_din <= scratch[1]; // Set BRAM B data in to scratch[1] (bytes received from UART)
@@ -337,7 +341,10 @@ always @(posedge CLK100MHZ) begin
             end else begin // All data received
                 uart_txd <= UART_ACK; // Set uart_txd to ACK
                 uart_tx_begin <= 1'b1; // Assert uart_tx_begin (start transmit)
-                state <= ST_RXB_COMPLETE; // Change state to RXB_COMPLETE
+                bram_b_addr <= scratch[2]; // Set BRAM B address to scratch[2] (current address)
+                bram_b_din <= scratch[1]; // Set BRAM B data in to scratch[1] (bytes received from UART)
+                return_state <= ST_RXB_COMPLETE; // Set return state to RXB_COMPLETE
+                state <= ST_BRAM_B_WEA; // Change state to BRAM_B_WEA (write to BRAM B)
             end
         end
 
@@ -404,7 +411,6 @@ always @(posedge CLK100MHZ) begin
                         state <= ST_MUL_EL_WRITE; // Change state to MUL_EL_WRITE (write result element to BRAM)
                         a_j <= 0; // Reset a_j
                         b_i <= 0; // Reset b_i
-                        r_j <= r_j + 1; // Increment r_j
                         b_j <= b_j + 1; // Increment b_j
                     end
                 end else begin
@@ -449,6 +455,7 @@ always @(posedge CLK100MHZ) begin
 
         ST_MUL_EL_WRITE: begin // Multiply element - write back result
             bram_r_addr <= r_i*r_n + r_j + 2; // Set BRAM R address
+            r_j <= r_j + 1; // Increment r_j
             bram_r_din <= r_v; // Set BRAM R data in to r_v
             r_v <= 0; // Reset r_v
             return_state <= ST_MUL_EL_START; // Set return state to MUL_EL_START

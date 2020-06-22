@@ -89,8 +89,6 @@ endtask
 
 // === SIMULATION SETUP ===
 initial begin
-    //$display("|STATE|a_m|a_n|b_m|b_n|");
-    $monitor("|  %h | %h | %h | %h | %h |%h | %h | %h |", mma_state, mod_mma.r_i, mod_mma.r_j, mod_mma.a_i, mod_mma.a_j, mod_mma.b_i, mod_mma.b_j, mod_mma.r_v);
     // Assign initial values
     clk <= 0;
     uart_reset <= 0;

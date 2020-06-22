@@ -404,7 +404,9 @@ always @(posedge CLK100MHZ) begin
                     if (a_j < a_n) begin // Iterate through elements
                         bram_a_addr <= a_i*a_n + a_j + 2; // Set BRAM A address
                         bram_b_addr <= b_i*b_n + b_j + 2; // Set BRAM B address
-                        state <= ST_MUL_EL_FETCH; // Change state to MUL_EL_FETCH (fetch, MAC)
+                        return_state <= ST_MUL_EL_FETCH; // Set return state to MUL_EL_FETCH (fetch, MAC)
+                        scratch[0] <= 1; // Set scratch[0] (delay duration) to 1
+                        state <= ST_WAIT; // Change state to WAIT
                         a_j <= a_j + 1; // Increment a_j
                         b_i <= b_i + 1; // Increment b_i
                     end else begin

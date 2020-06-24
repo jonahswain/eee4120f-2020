@@ -18,7 +18,7 @@ reg A_valid;
 reg [31:0] B;
 reg B_valid;
 reg [31:0] C;
-reg C_valid
+reg C_valid;
 wire [31:0] R;
 wire R_valid;
 
@@ -27,10 +27,13 @@ FP_MAC fpm (CLK, A_valid, A, B_valid, B, C_valid, C, R_valid, R);
 
 // === SETUP ===
 initial begin
+    // Display cycles and result
     $display("cycle, R, R_valid");
     $monitor("%02d, %X, %b", cycle, R, R_valid);
 
+    // Initial values
     CLK <= 0;
+    cycle <= 0;
     A <= n_A;
     B <= n_B;
     C <= n_C;
@@ -38,12 +41,11 @@ initial begin
     B_valid <= 1'b1;
     C_valid <= 1'b1;
     
-    repeat (40) begin // Clock generation
-    #5 CLK <= ~CLK;
+    repeat (25) begin // Clock generation
     #5 CLK <= ~CLK;
     cycle <= cycle + 1;
+    #5 CLK <= ~CLK;
     end
-
 
 end
 

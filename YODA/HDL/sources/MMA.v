@@ -158,7 +158,7 @@ BRAM mod_bram_b (CLK100MHZ, bram_b_ena, bram_b_wea, bram_b_addr, bram_b_din, bra
 BRAM mod_bram_r (CLK100MHZ, bram_r_ena, bram_r_wea, bram_r_addr, bram_r_din, bram_r_dout); // BRAM module R
 FP_MAC mod_fpu (CLK100MHZ, fpu_valid_a, fpu_in_a, fpu_valid_b, fpu_in_b, fpu_valid_c, fpu_in_c, fpu_valid_r, fpu_r); // FP_MAC module (floating point multiplier/accumulator)
 Counter mod_cntr (CLK100MHZ, counter_reset, counter_en, counter_value); // Counter module (counts clock cycles)
-SevenSegmentDriver mod_7seg (CLK100MHZ, sevenseg_reset, sevenseg_state, AN[7:0], {CA, CB, CC, CD, CE, CF, CG, DP}); // 7 segment display driver module
+SevenSegmentDriver mod_7seg (CLK100MHZ, sevenseg_reset, counter_value, AN[7:0], {CA, CB, CC, CD, CE, CF, CG, DP}); // 7 segment display driver module
 
 // === BODY/CLOCK DOMAIN ===
 always @(posedge CLK100MHZ) begin

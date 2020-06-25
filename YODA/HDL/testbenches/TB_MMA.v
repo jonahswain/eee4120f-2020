@@ -37,6 +37,7 @@ localparam [191:0] matrixB = {         // Matrix B
 // === REGISTERS & WIRES ===
 reg clk = 0;                                // Global clock
 
+reg [7:0] uart_recv_data;                   // Data received from UART
 reg uart_reset = 0;                         // UART reset
 wire uart_rx, uart_tx;                      // UART TX, RX lines
 reg [7:0] uart_txd = 0;                     // UART TX data
@@ -94,6 +95,9 @@ initial begin
     uart_reset <= 0;
     uart_txd <= 0;
     uart_tx_begin <= 0;
+    
+    $display("uart_rx_ready, uart_rxd");
+    $monitor("%h, %h", uart_rx_ready, uart_recv_data);
 
     // Transmit matrix A
     uart_txd <= UART_RX_A; // Transmit UART_RX_A
@@ -215,6 +219,10 @@ initial begin
     uart_send_byte();
     
     while (1) cycle_clk(); // Clock forever
+end
+
+always @(posedge uart_rx_ready) begin // Async UART receive data
+    uart_recv_data <= uart_rxd;
 end
 
 // === BODY/CLOCK DOMAIN ===

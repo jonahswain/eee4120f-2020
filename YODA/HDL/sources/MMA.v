@@ -642,35 +642,50 @@ always @(posedge CLK100MHZ) begin
 
         ST_BRAM_A_WEA: begin // BRAM A assert wea for a cycle
             bram_a_wea <= 1'b1; // Assert wea
-            state <= ST_BRAM_A_WEA_LOW; // Change state to BRAM_A_WEA_LOW
+            scratch[5][7:0] <= scratch[0][7:0]; // Save argument to scratch[5]
+            scratch[5][15:8] <= return_state; // Save return state to scratch[5]
+            scratch[0] <= 1; // Set argument to 1
+            return_state <= ST_BRAM_A_WEA_LOW; // Set return state to BRAM_A_WEA_LOW
+            state <= ST_WAIT; // Change state to WAIT
         end
 
         ST_BRAM_A_WEA_LOW: begin // BRAM A deassert wea
             bram_a_wea <= 1'b0; // Deassert wea
-            return_state <= scratch[0][7:0]; // Set return state
-            state <= return_state; // Return
+            scratch[5][15:0] <= 0; // Reset used parts of scratch[5]
+            return_state <= scratch[5][7:0]; // Set return state
+            state <= scratch[5][15:8]; // Return
         end
 
         ST_BRAM_B_WEA: begin // BRAM B assert wea for a cycle
             bram_b_wea <= 1'b1; // Assert wea
-            state <= ST_BRAM_B_WEA_LOW; // Change state to BRAM_B_WEA_LOW
+            scratch[5][7:0] <= scratch[0][7:0]; // Save argument to scratch[5]
+            scratch[5][15:8] <= return_state; // Save return state to scratch[5]
+            scratch[0] <= 1; // Set argument to 1
+            return_state <= ST_BRAM_B_WEA_LOW; // Set return state to BRAM_B_WEA_LOW
+            state <= ST_WAIT; // Change state to WAIT
         end
 
         ST_BRAM_B_WEA_LOW: begin // BRAM B deassert wea
             bram_b_wea <= 1'b0; // Deassert wea
-            return_state <= scratch[0][7:0]; // Set return state
-            state <= return_state; // Return
+            scratch[5][15:0] <= 0; // Reset used parts of scratch[5]
+            return_state <= scratch[5][7:0]; // Set return state
+            state <= scratch[5][15:8]; // Return
         end
 
         ST_BRAM_R_WEA: begin // BRAM R assert wea for a cycle
             bram_r_wea <= 1'b1; // Assert wea
-            state <= ST_BRAM_R_WEA_LOW; // Change state to BRAM_R_WEA_LOW
+            scratch[5][7:0] <= scratch[0][7:0]; // Save argument to scratch[5]
+            scratch[5][15:8] <= return_state; // Save return state to scratch[5]
+            scratch[0] <= 1; // Set argument to 1
+            return_state <= ST_BRAM_R_WEA_LOW; // Set return state to BRAM_R_WEA_LOW
+            state <= ST_WAIT; // Change state to WAIT
         end
 
         ST_BRAM_R_WEA_LOW: begin // BRAM R deassert wea
             bram_r_wea <= 1'b0; // Deassert wea
-            return_state <= scratch[0][7:0]; // Set return state
-            state <= return_state; // Return
+            scratch[5][15:0] <= 0; // Reset used parts of scratch[5]
+            return_state <= scratch[5][7:0]; // Set return state
+            state <= scratch[5][15:8]; // Return
         end
 
     endcase

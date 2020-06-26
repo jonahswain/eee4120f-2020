@@ -90,10 +90,8 @@ function test_mma() # Tests the MMA module
 
     # Generate matrices
     println("Generating matrices");
-    #A = generate_matrix(A_M, A_N);
-    #B = generate_matrix(B_M, B_N);
-    A = Float32.([1.0 2.0; 3.0 4.0]);
-    B = Float32.([5.0 6.0; 7.0 8.0]);
+    A = generate_matrix(A_M, A_N);
+    B = generate_matrix(B_M, B_N);
 
     transfer_time = 0.0;
 
@@ -132,26 +130,6 @@ function test_mma() # Tests the MMA module
 
     close(sp); # Close serial port
 end;
-
-# mma_cycles(A_M, A_N, B_N) = 9 + A_M*(1 + B_N*(1 + 26*A_N));
-
-# function generate_results()
-#     # Pre-compile functions
-#     A = generate_matrix(2, 2);
-#     B = generate_matrix(2, 2);
-#     @timed multiply_matrices(A, B); 
-
-#     println("size, time (PC), transfer time, multiplication time")
-
-#     for d ∈ 5:5:200
-#         A = generate_matrix(d, d);
-#         B = generate_matrix(d, d);
-#         pcr = @timed multiply_matrices(A, B);
-#         ttime = 3*((1+(d*d+2)*4)*11/9600);
-#         mtime = mma_cycles(d, d, d)/100000000;
-#         println(d, ", ", pcr[2], ", ", ttime, ", ", mtime);
-#     end;
-# end;
 
 # === MAIN CODE BODY ===
 test_mma();
